@@ -1,0 +1,9 @@
+2025-06-28 10:53:20,612 | INFO | Starting database error fix script
+2025-06-28 10:53:20,613 | INFO | Script started at: 2025-06-28 10:53:20.613128
+2025-06-28 10:53:20,614 | INFO | Created backup at app\services\data_service.py.bak
+2025-06-28 10:53:20,615 | INFO | Successfully updated app\services\data_service.py
+2025-06-28 10:53:20,617 | INFO | Created backup at app\services\forecast_service.py.bak
+2025-06-28 10:53:20,619 | INFO | Successfully updated app\services\forecast_service.py
+2025-06-28 10:53:20,620 | INFO | All fixes applied successfully!
+2025-06-28 10:53:20,620 | INFO | Script finished at: 2025-06-28 10:53:20.620339
+2025-06-28 10:53:20,620 | INFO | Total execution time: 0:00:00.007211

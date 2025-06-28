@@ -268,11 +268,7 @@ class ForecastService:
         
         # Execute query
         with get_connection() as conn:
-            # Execute as a regular SQL query with params as a tuple
-            cursor = conn.cursor()
-            cursor.execute(query, tuple(params))
-            result = cursor.fetchall()
-            cursor.close()
+            result = conn.execute(query, params).fetchall()
         
         # Convert to DataFrame
         df = pd.DataFrame(result, columns=['ds', 'y'])
