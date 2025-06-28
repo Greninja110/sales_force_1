@@ -1,6 +1,6 @@
+# In config.py
 import os
 from pathlib import Path
-from pydantic import BaseSettings
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
@@ -9,7 +9,7 @@ load_dotenv()
 # Define the base directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-class Settings(BaseSettings):
+class Settings:
     """Application settings."""
     # General settings
     APP_NAME: str = "Sales Dashboard API"
@@ -30,10 +30,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT: str = "{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
     LOG_DIR: str = os.path.join(BASE_DIR, "backend", "app", "logs")
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 # Create settings instance
 settings = Settings()

@@ -1,13 +1,15 @@
 import axios from 'axios';
 
 // Create axios instance with base URL from environment variable
+// To this:
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
-  timeout: 30000, // 30 seconds
+  baseURL: process.env.REACT_APP_API_URL || window.location.origin.replace('3000', '8000'),
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
 
 // Request interceptor for logging requests
 api.interceptors.request.use(
