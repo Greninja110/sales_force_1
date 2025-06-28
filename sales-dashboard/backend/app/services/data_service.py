@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Optional, Union, Tuple
 from datetime import datetime, timedelta
+from sqlalchemy import text
 from ..database import get_dataframe, get_connection
 from ..utils.logger import log
 from ..utils.helpers import (
@@ -29,7 +30,7 @@ class DataService:
             start_date, end_date = parse_date_range(date_range)
         
         # Get data for current period
-        current_query = self._build_filter_query(start_date, end_date, category, region)
+        current_query, current_params = self._build_filter_query(start_date, end_date, category, region)
         current_df = get_dataframe(current_query)
         
         # Get data for previous period of equal length
@@ -37,7 +38,7 @@ class DataService:
             period_length = (end_date - start_date).days
             prev_end_date = start_date - timedelta(days=1)
             prev_start_date = prev_end_date - timedelta(days=period_length)
-            prev_query = self._build_filter_query(prev_start_date, prev_end_date, category, region)
+            prev_query, prev_params = self._build_filter_query(prev_start_date, prev_end_date, category, region)
             prev_df = get_dataframe(prev_query)
         else:
             prev_df = pd.DataFrame()
@@ -142,19 +143,19 @@ class DataService:
         
         # Add WHERE clause if needed
         where_clauses = []
-        params = []
+        params = {}
         
         if start_date:
-            where_clauses.append("order_date >= ?")
-            params.append(start_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
         
         if end_date:
-            where_clauses.append("order_date <= ?")
-            params.append(end_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
         
         if region:
-            where_clauses.append("region = ?")
-            params.append(region)
+            where_clauses.append("region = :region")
+            params["region"] = region
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
@@ -169,7 +170,9 @@ class DataService:
         
         # Execute query
         with get_connection() as conn:
-            result = conn.execute(query, params).fetchall()
+            # Convert query string to SQLAlchemy text object
+            sql_text = text(query)
+            result = conn.execute(sql_text, params).fetchall()
         
         # Calculate total sales for percentage
         total_sales = sum(row[1] for row in result)
@@ -213,19 +216,19 @@ class DataService:
         
         # Add WHERE clause if needed
         where_clauses = []
-        params = []
+        params = {}
         
         if start_date:
-            where_clauses.append("order_date >= ?")
-            params.append(start_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
         
         if end_date:
-            where_clauses.append("order_date <= ?")
-            params.append(end_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
         
         if category:
-            where_clauses.append("category = ?")
-            params.append(category)
+            where_clauses.append("category = :category")
+            params["category"] = category
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
@@ -240,7 +243,8 @@ class DataService:
         
         # Execute query
         with get_connection() as conn:
-            result = conn.execute(query, params).fetchall()
+            sql_text = text(query)
+            result = conn.execute(sql_text, params).fetchall()
         
         # Calculate total sales for percentage
         total_sales = sum(row[1] for row in result)
@@ -279,16 +283,25 @@ class DataService:
                 start_date = end_date - timedelta(days=90)
         
         # Get daily sales
-        daily_query = self._build_time_series_query('day', start_date, end_date, category, region)
-        daily_df = get_dataframe(daily_query)
+        daily_query, daily_params = self._build_time_series_query('day', start_date, end_date, category, region)
+        daily_sql = text(daily_query)
+        with get_connection() as conn:
+            daily_result = conn.execute(daily_sql, daily_params).fetchall()
+            daily_df = pd.DataFrame(daily_result, columns=['date_period', 'total_sales', 'order_count'])
         
         # Get weekly sales
-        weekly_query = self._build_time_series_query('week', start_date, end_date, category, region)
-        weekly_df = get_dataframe(weekly_query)
+        weekly_query, weekly_params = self._build_time_series_query('week', start_date, end_date, category, region)
+        weekly_sql = text(weekly_query)
+        with get_connection() as conn:
+            weekly_result = conn.execute(weekly_sql, weekly_params).fetchall()
+            weekly_df = pd.DataFrame(weekly_result, columns=['date_period', 'total_sales', 'order_count'])
         
         # Get monthly sales
-        monthly_query = self._build_time_series_query('month', start_date, end_date, category, region)
-        monthly_df = get_dataframe(monthly_query)
+        monthly_query, monthly_params = self._build_time_series_query('month', start_date, end_date, category, region)
+        monthly_sql = text(monthly_query)
+        with get_connection() as conn:
+            monthly_result = conn.execute(monthly_sql, monthly_params).fetchall()
+            monthly_df = pd.DataFrame(monthly_result, columns=['date_period', 'total_sales', 'order_count'])
         
         # Prepare result
         result = {
@@ -323,13 +336,12 @@ class DataService:
         if date_range and not (start_date and end_date):
             start_date, end_date = parse_date_range(date_range)
         
-        # Build query
+        # Build query - remove subcategory column as it doesn't exist in the database
         query = """
             SELECT 
                 product_id,
                 product_name,
                 category,
-                subcategory,
                 SUM(sales) as total_sales,
                 SUM(quantity) as total_quantity,
                 COUNT(DISTINCT order_id) as order_count
@@ -339,49 +351,51 @@ class DataService:
         
         # Add WHERE clause if needed
         where_clauses = []
-        params = []
+        params = {}
         
         if start_date:
-            where_clauses.append("order_date >= ?")
-            params.append(start_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
         
         if end_date:
-            where_clauses.append("order_date <= ?")
-            params.append(end_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
         
         if category:
-            where_clauses.append("category = ?")
-            params.append(category)
+            where_clauses.append("category = :category")
+            params["category"] = category
         
         if region:
-            where_clauses.append("region = ?")
-            params.append(region)
+            where_clauses.append("region = :region")
+            params["region"] = region
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
         
-        # Add GROUP BY and ORDER BY
+        # Add GROUP BY and ORDER BY - remove subcategory from GROUP BY
         query += f"""
             GROUP BY 
-                product_id, product_name, category, subcategory
+                product_id, product_name, category
             ORDER BY 
                 total_sales DESC
-            LIMIT {limit}
+            LIMIT :limit
         """
+        params["limit"] = limit
         
         # Execute query
         with get_connection() as conn:
-            result = conn.execute(query, params).fetchall()
+            sql_text = text(query)
+            result = conn.execute(sql_text, params).fetchall()
         
-        # Prepare result
+        # Prepare result - add a default value for subcategory
         products = []
         for row in result:
-            product_id, product_name, category, subcategory, sales, quantity, order_count = row
+            product_id, product_name, category, sales, quantity, order_count = row
             products.append({
                 "product_id": product_id,
                 "product_name": product_name,
                 "category": category,
-                "subcategory": subcategory,
+                "subcategory": "Not Available",  # Add a default value for subcategory
                 "sales": float(sales),
                 "quantity": int(quantity),
                 "order_count": order_count
@@ -389,7 +403,7 @@ class DataService:
         
         log.end_timer("get_top_products")
         return products
-    
+
     def get_sales_by_customer_segment(self, 
                                      date_range: str = None, 
                                      start_date: datetime = None, 
@@ -414,15 +428,15 @@ class DataService:
         
         # Add WHERE clause if needed
         where_clauses = []
-        params = []
+        params = {}
         
         if start_date:
-            where_clauses.append("order_date >= ?")
-            params.append(start_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
         
         if end_date:
-            where_clauses.append("order_date <= ?")
-            params.append(end_date.strftime('%Y-%m-%d'))
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
@@ -437,7 +451,8 @@ class DataService:
         
         # Execute query
         with get_connection() as conn:
-            result = conn.execute(query, params).fetchall()
+            sql_text = text(query)
+            result = conn.execute(sql_text, params).fetchall()
         
         # Calculate total sales for percentage
         total_sales = sum(row[1] for row in result)
@@ -460,95 +475,117 @@ class DataService:
         return segments
     
     def get_dashboard_data(self,
-                          date_range: str = None, 
-                          start_date: datetime = None, 
-                          end_date: datetime = None,
-                          category: str = None,
-                          region: str = None) -> Dict[str, Any]:
+                        date_range: str = None, 
+                        start_date: datetime = None, 
+                        end_date: datetime = None,
+                        category: str = None,
+                        region: str = None) -> Dict[str, Any]:
         """Get complete dashboard data."""
         log.start_timer("get_dashboard_data")
         
-        # Get sales summary
-        summary = self.get_sales_summary(date_range, start_date, end_date, category, region)
-        
-        # Get sales by category
-        categories = self.get_sales_by_category(date_range, start_date, end_date, region)
-        
-        # Get sales by region
-        regions = self.get_sales_by_region(date_range, start_date, end_date, category)
-        
-        # Get time series data
-        time_series = self.get_sales_time_series(date_range, start_date, end_date, category, region)
-        
-        # Get top products
-        products = self.get_top_products(date_range, start_date, end_date, category, region)
-        
-        # Prepare time series chart data
-        sales_trend = {
-            "labels": [item["date"] for item in time_series["daily"]],
-            "datasets": [
-                {
-                    "label": "Sales",
-                    "data": [item["value"] for item in time_series["daily"]],
-                    "borderColor": "#4F46E5",
-                    "backgroundColor": "rgba(79, 70, 229, 0.2)"
-                }
-            ]
-        }
-        
-        # Prepare result
-        result = {
-            "key_metrics": summary["key_metrics"],
-            "sales_trend": sales_trend,
-            "category_breakdown": categories,
-            "regional_sales": regions,
-            "top_products": products,
-            "sales_by_time": {
-                "daily": time_series["daily"],
-                "weekly": time_series["weekly"],
-                "monthly": time_series["monthly"]
+        try:
+            # Get sales summary
+            summary = self.get_sales_summary(date_range, start_date, end_date, category, region)
+            
+            # Get sales by category
+            categories = self.get_sales_by_category(date_range, start_date, end_date, region)
+            
+            # Get sales by region
+            regions = self.get_sales_by_region(date_range, start_date, end_date, category)
+            
+            # Get time series data
+            time_series = self.get_sales_time_series(date_range, start_date, end_date, category, region)
+            
+            # Get top products
+            try:
+                products = self.get_top_products(date_range, start_date, end_date, category, region)
+            except Exception as e:
+                log.error(f"Error fetching top products: {str(e)}")
+                # Provide empty products list if there's an error
+                products = []
+            
+            # Prepare time series chart data
+            sales_trend = {
+                "labels": [item["date"] for item in time_series["daily"]],
+                "datasets": [
+                    {
+                        "label": "Sales",
+                        "data": [item["value"] for item in time_series["daily"]],
+                        "borderColor": "#4F46E5",
+                        "backgroundColor": "rgba(79, 70, 229, 0.2)"
+                    }
+                ]
             }
-        }
-        
-        log.end_timer("get_dashboard_data")
-        return result
+            
+            # Prepare result
+            result = {
+                "key_metrics": summary["key_metrics"],
+                "sales_trend": sales_trend,
+                "category_breakdown": categories,
+                "regional_sales": regions,
+                "top_products": products,
+                "sales_by_time": {
+                    "daily": time_series["daily"],
+                    "weekly": time_series["weekly"],
+                    "monthly": time_series["monthly"]
+                }
+            }
+            
+            log.end_timer("get_dashboard_data")
+            return result
+        except Exception as e:
+            log.error(f"Error in get_dashboard_data: {str(e)}")
+            # Return a minimal response with error information
+            return {
+                "error": str(e),
+                "key_metrics": [],
+                "sales_trend": {"labels": [], "datasets": []},
+                "category_breakdown": [],
+                "regional_sales": [],
+                "top_products": [],
+                "sales_by_time": {"daily": [], "weekly": [], "monthly": []}
+            }
     
     # Helper methods
     def _build_filter_query(self, 
                            start_date: datetime = None, 
                            end_date: datetime = None,
                            category: str = None,
-                           region: str = None) -> str:
+                           region: str = None) -> Tuple[str, Dict]:
         """Build a SQL query with filters."""
         query = "SELECT * FROM sales"
         
         # Add WHERE clause if needed
         where_clauses = []
-        params = []
+        params = {}
         
         if start_date:
-            where_clauses.append("order_date >= '" + start_date.strftime('%Y-%m-%d') + "'")
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
         
         if end_date:
-            where_clauses.append("order_date <= '" + end_date.strftime('%Y-%m-%d') + "'")
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
         
         if category:
-            where_clauses.append(f"category = '{category}'")
+            where_clauses.append("category = :category")
+            params["category"] = category
         
         if region:
-            where_clauses.append(f"region = '{region}'")
+            where_clauses.append("region = :region")
+            params["region"] = region
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
         
-        return query
+        return query, params
     
     def _build_time_series_query(self, 
                                 period: str,
                                 start_date: datetime = None, 
                                 end_date: datetime = None,
                                 category: str = None,
-                                region: str = None) -> str:
+                                region: str = None) -> Tuple[str, Dict]:
         """Build a SQL query for time series data."""
         # Determine date format based on period
         if period == 'day':
@@ -572,18 +609,23 @@ class DataService:
         
         # Add WHERE clause if needed
         where_clauses = []
+        params = {}
         
         if start_date:
-            where_clauses.append("order_date >= '" + start_date.strftime('%Y-%m-%d') + "'")
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
         
         if end_date:
-            where_clauses.append("order_date <= '" + end_date.strftime('%Y-%m-%d') + "'")
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
         
         if category:
-            where_clauses.append(f"category = '{category}'")
+            where_clauses.append("category = :category")
+            params["category"] = category
         
         if region:
-            where_clauses.append(f"region = '{region}'")
+            where_clauses.append("region = :region")
+            params["region"] = region
         
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
@@ -596,7 +638,65 @@ class DataService:
                 date_period
         """
         
-        return query
+        return query, params
+    
+    def _get_previous_period_sales(self, 
+                                  start_date: datetime, 
+                                  end_date: datetime,
+                                  category: str = None,
+                                  region: str = None) -> float:
+        """Get sales data for the previous period."""
+        if not start_date or not end_date:
+            return 0
+        
+        # Build query
+        query = """
+            SELECT 
+                SUM(sales) as total_sales
+            FROM 
+                sales
+        """
+        
+        # Add WHERE clause if needed
+        where_clauses = []
+        params = {}
+        
+        if start_date:
+            where_clauses.append("order_date >= :start_date")
+            params["start_date"] = start_date.strftime('%Y-%m-%d')
+        
+        if end_date:
+            where_clauses.append("order_date <= :end_date")
+            params["end_date"] = end_date.strftime('%Y-%m-%d')
+        
+        if category:
+            where_clauses.append("category = :category")
+            params["category"] = category
+        
+        if region:
+            where_clauses.append("region = :region")
+            params["region"] = region
+        
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+        
+        # Execute query
+        with get_connection() as conn:
+            sql_text = text(query)
+            result = conn.execute(sql_text, params).fetchone()
+        
+        return float(result[0]) if result and result[0] else 0
+    
+    def _get_previous_period(self, start_date: datetime, end_date: datetime) -> Tuple[datetime, datetime]:
+        """Calculate the previous period date range."""
+        if not start_date or not end_date:
+            return None, None
+        
+        delta = end_date - start_date
+        previous_end = start_date - timedelta(days=1)
+        previous_start = previous_end - delta
+        
+        return previous_start, previous_end
 
 # Create a singleton instance
 data_service = DataService()

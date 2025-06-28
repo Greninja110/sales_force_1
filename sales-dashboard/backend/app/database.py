@@ -1,9 +1,10 @@
+# File: backend/app/database.py
 import os
 import pandas as pd
 import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, Float, String, Date, inspect
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, Float, String, Date, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -52,7 +53,8 @@ def init_db():
         inspector = inspect(engine)
         if 'sales' in inspector.get_table_names():
             # Check if there are records in the sales table
-            result = conn.execute("SELECT COUNT(*) FROM sales").fetchone()
+            # Use text() to create an executable SQL expression
+            result = conn.execute(text("SELECT COUNT(*) FROM sales")).fetchone()
             if result[0] > 0:
                 log.info("Data already loaded into database")
                 return
@@ -136,10 +138,12 @@ def clean_and_transform_data(df):
     return df
 
 # Create a function to get a dataframe from the database
-def get_dataframe(query="SELECT * FROM sales"):
+def get_dataframe(query_string="SELECT * FROM sales"):
     """Execute a SQL query and return the results as a pandas DataFrame."""
     try:
         with get_connection() as conn:
+            # Convert string to SQL text object
+            query = text(query_string)
             df = pd.read_sql_query(query, conn)
             return df
     except SQLAlchemyError as e:
