@@ -19,10 +19,17 @@ const FilterPanel = ({
     region: '',
   });
   
-  // Apply filters when component mounts
-  useEffect(() => {
-    handleApplyFilters();
-  }, []);
+ // TO:
+useEffect(() => {
+  // Use a debounce to prevent too many API calls
+  const timer = setTimeout(() => {
+    if (onFilterChange) {
+      onFilterChange(filters);
+    }
+  }, 300);
+  
+  return () => clearTimeout(timer);
+}, [filters, onFilterChange]);
   
   // Handle date range change
   const handleDateRangeChange = (start, end) => {
