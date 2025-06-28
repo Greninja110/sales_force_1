@@ -53,7 +53,7 @@ const Sidebar = () => {
   ];
   
   return (
-    <div className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 bg-primary-800 text-white">
+  <div className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 bg-primary-800 text-white z-20">
       {/* Logo */}
       <div className="flex items-center justify-center h-16 bg-primary-900">
         <span className="text-xl font-bold">Sales Dashboard</span>

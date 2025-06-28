@@ -120,28 +120,29 @@ function App() {
   }
   
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar />
-      
-      {/* Main Content */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Navbar />
-        
-        <main className="flex-1 overflow-auto p-4">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/sales" element={<SalesAnalysis />} />
-            <Route path="/regions" element={<RegionalAnalysis />} />
-            <Route path="/products" element={<ProductAnalysis />} />
-            <Route path="/forecasting" element={<Forecasting />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-        
-        <Footer />
-      </div>
-    </div>
+    // To this
+<div className="flex h-screen bg-gray-50">
+  {/* Sidebar */}
+  <Sidebar />
+  
+  {/* Main Content */}
+  <div className="flex flex-col flex-1 overflow-hidden md:ml-64">
+    <Navbar />
+    
+    <main className="flex-1 overflow-auto p-4">
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/sales" element={<SalesAnalysis />} />
+        <Route path="/regions" element={<RegionalAnalysis />} />
+        <Route path="/products" element={<ProductAnalysis />} />
+        <Route path="/forecasting" element={<Forecasting />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </main>
+    
+    <Footer />
+  </div>
+</div>
   );
 }
 
