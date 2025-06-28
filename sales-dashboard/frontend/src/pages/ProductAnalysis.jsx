@@ -8,7 +8,7 @@ import {
   Tooltip, 
   Legend, 
   ResponsiveContainer,
-  TreeMap,
+  Treemap,
   Cell
 } from 'recharts';
 import FilterPanel from '../components/dashboard/FilterPanel';
@@ -30,7 +30,7 @@ const ProductAnalysis = () => {
   const [error, setError] = useState(null);
   
   // UI state
-  const [viewMode, setViewMode] = useState('pie'); // 'pie', 'treemap', 'bar'
+  const [viewMode, setViewMode] = useState('pie'); // 'pie', 'Treemap', 'bar'
   const [selectedCategory, setSelectedCategory] = useState(null);
   
   // Filter state
@@ -130,7 +130,7 @@ const ProductAnalysis = () => {
     setSelectedCategory(category);
   };
   
-  // Format data for TreeMap
+  // Format data for Treemap
   const formatTreeMapData = () => {
     if (!categoryData || categoryData.length === 0) return [];
     
@@ -169,7 +169,7 @@ const ProductAnalysis = () => {
               <div className="animate-pulse h-full bg-gray-100 rounded"></div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <TreeMap
+                <Treemap
                   data={formatTreeMapData()}
                   dataKey="size"
                   aspectRatio={4/3}
@@ -183,7 +183,7 @@ const ProductAnalysis = () => {
                       onClick={() => setSelectedCategory(entry.name)}
                     />
                   ))}
-                </TreeMap>
+                </Treemap>
               </ResponsiveContainer>
             )}
           </div>
@@ -283,9 +283,9 @@ const ProductAnalysis = () => {
               Pie Chart
             </Button>
             <Button
-              variant={viewMode === 'treemap' ? 'primary' : 'secondary'}
+              variant={viewMode === 'Treemap' ? 'primary' : 'secondary'}
               size="sm"
-              onClick={() => handleViewModeChange('treemap')}
+              onClick={() => handleViewModeChange('Treemap')}
             >
               Tree Map
             </Button>
